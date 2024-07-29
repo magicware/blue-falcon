@@ -15,8 +15,6 @@ actual class BlueFalcon actual constructor(private val context: ApplicationConte
     actual var isScanning: Boolean = false
 
     actual val scope = CoroutineScope(Dispatchers.Default)
-    internal actual val _peripherals = MutableStateFlow<Set<BluetoothPeripheral>>(emptySet())
-    actual val peripherals: NativeFlow<Set<BluetoothPeripheral>> = _peripherals.toNativeType(scope)
 
     init {
         centralManager = CBCentralManager(bluetoothPeripheralManager, null)

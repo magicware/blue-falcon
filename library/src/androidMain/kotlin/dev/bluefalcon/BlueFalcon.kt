@@ -1,22 +1,26 @@
 package dev.bluefalcon
 
 import AdvertisementDataRetrievalKeys
-import android.Manifest
-import android.bluetooth.*
 import android.bluetooth.BluetoothAdapter.STATE_CONNECTED
 import android.bluetooth.BluetoothAdapter.STATE_DISCONNECTED
-import android.bluetooth.le.*
+import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothGatt
+import android.bluetooth.BluetoothGattCallback
+import android.bluetooth.BluetoothGattCharacteristic
+import android.bluetooth.BluetoothGattDescriptor
+import android.bluetooth.BluetoothManager
+import android.bluetooth.le.ScanCallback
+import android.bluetooth.le.ScanFilter
+import android.bluetooth.le.ScanRecord
+import android.bluetooth.le.ScanResult
+import android.bluetooth.le.ScanSettings
 import android.content.Context
-import android.content.pm.PackageManager
 import android.os.Build
 import android.os.ParcelUuid
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import java.nio.ByteBuffer
-import java.util.*
+import java.util.UUID
 
 actual class BlueFalcon actual constructor(private val context: ApplicationContext) {
     actual val delegates: MutableSet<BlueFalconDelegate> = mutableSetOf()
@@ -28,8 +32,6 @@ actual class BlueFalcon actual constructor(private val context: ApplicationConte
     actual var isScanning: Boolean = false
 
     actual val scope = CoroutineScope(Dispatchers.Default)
-    internal actual val _peripherals = MutableStateFlow<Set<BluetoothPeripheral>>(emptySet())
-    actual val peripherals: NativeFlow<Set<BluetoothPeripheral>> = _peripherals.toNativeType(scope)
 
     actual fun connect(bluetoothPeripheral: BluetoothPeripheral, autoConnect: Boolean) {
         log("connect")
@@ -60,7 +62,7 @@ actual class BlueFalcon actual constructor(private val context: ApplicationConte
         bluetoothManager.adapter?.bluetoothLeScanner?.stopScan(mBluetoothScanCallBack)
     }
 
-    actual fun scan(serviceUUID :String?) {
+    actual fun scan(serviceUUID: String?) {
         log("BT Scan started")
         isScanning = true
 
@@ -259,7 +261,6 @@ actual class BlueFalcon actual constructor(private val context: ApplicationConte
                     val bluetoothPeripheral = BluetoothPeripheral(device)
                     bluetoothPeripheral.rssi = scanResult.rssi.toFloat()
 
-                    _peripherals.tryEmit(_peripherals.value + setOf(bluetoothPeripheral))
                     delegates.forEach {
                         it.didDiscoverDevice(bluetoothPeripheral, sharedAdvertisementData)
                     }
@@ -319,7 +320,7 @@ actual class BlueFalcon actual constructor(private val context: ApplicationConte
                 gatt.services.let { services ->
                     log("onServicesDiscovered -> $services")
                     val bluetoothPeripheral = BluetoothPeripheral(bluetoothDevice)
-                    bluetoothPeripheral._servicesFlow.tryEmit(services.map {  BluetoothService(it) })
+                    bluetoothPeripheral._servicesFlow.tryEmit(services.map { BluetoothService(it) })
                     delegates.forEach {
                         it.didDiscoverServices(bluetoothPeripheral)
                         it.didDiscoverCharacteristics(bluetoothPeripheral)
@@ -485,11 +486,13 @@ actual class BlueFalcon actual constructor(private val context: ApplicationConte
                         String(value)
 
                 }
+
                 0xff -> {
                     sharedAdvertisementData[AdvertisementDataRetrievalKeys.ManufacturerData] =
                         value
 
                 }
+
                 0x07 -> {
                     val uuidAsStringList = mutableListOf<String>()
                     value.reverse() //Because service uuids are in reversed order

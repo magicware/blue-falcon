@@ -57,7 +57,7 @@ android {
 val frameworkName = "BlueFalcon"
 
 kotlin {
-    jvmToolchain(17)
+    //jvmToolchain(17)
     androidTarget {
         publishAllLibraryVariants()
     }
